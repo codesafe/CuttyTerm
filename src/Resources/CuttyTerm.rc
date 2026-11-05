@@ -1,0 +1,137 @@
+#include "resource.h"
+#include <windows.h>
+
+IDI_APPICON ICON "app.ico"
+
+// 실행 파일 속성(자세히 탭)에 표시되는 제품 정보.
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION 1,0,0,0
+PRODUCTVERSION 1,0,0,0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041204B0"
+        BEGIN
+            VALUE "FileDescription", "CuttyTerm - SSH/Telnet 터미널"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "CuttyTerm"
+            VALUE "OriginalFilename", "CuttyTerm.exe"
+            VALUE "ProductName", "CuttyTerm"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0412, 1200
+    END
+END
+
+// ------------------------------------------------------------------
+// 옵션 다이얼로그: 폰트/크기/색상 변경. 컨트롤 조작 즉시 WM_COMMAND 로 알려
+// MainWindow 가 라이브 프리뷰를 적용하고, OK 를 눌러야 실제 저장/확정된다.
+// ------------------------------------------------------------------
+IDD_OPTIONS DIALOGEX 0, 0, 260, 160
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "옵션"
+FONT 9, "맑은 고딕"
+BEGIN
+    LTEXT           "글꼴(Font):", -1, 10, 12, 60, 10
+    COMBOBOX        IDC_OPT_FONTNAME, 80, 10, 160, 200, CBS_DROPDOWNLIST | CBS_SORT | WS_VSCROLL | WS_TABSTOP
+
+    LTEXT           "크기(Size):", -1, 10, 32, 60, 10
+    EDITTEXT        IDC_OPT_FONTSIZE, 80, 30, 50, 14, ES_NUMBER | WS_TABSTOP
+
+    PUSHBUTTON      "글자 색상...", IDC_OPT_FGCOLOR, 10, 55, 100, 16
+    PUSHBUTTON      "배경 색상...", IDC_OPT_BGCOLOR, 120, 55, 100, 16
+
+    LTEXT           "옵션을 변경하면 즉시 미리보기에 반영됩니다.", IDC_OPT_PREVIEW, 10, 85, 240, 20
+
+    DEFPUSHBUTTON   "확인",   IDOK,     90,  130, 50, 16
+    PUSHBUTTON      "취소",   IDCANCEL, 145, 130, 50, 16
+END
+
+// ------------------------------------------------------------------
+// 연결 관리 다이얼로그: 저장된 연결 목록 + 새 연결 추가/삭제/접속.
+// ------------------------------------------------------------------
+IDD_CONNECTION DIALOGEX 0, 0, 260, 268
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "연결 관리"
+FONT 9, "맑은 고딕"
+BEGIN
+    LISTBOX         IDC_CONN_LIST, 10, 10, 240, 70, LBS_NOTIFY | WS_VSCROLL | WS_TABSTOP | WS_BORDER
+
+    LTEXT           "이름:", -1, 10, 88, 40, 10
+    EDITTEXT        IDC_CONN_NAME, 60, 86, 190, 14, WS_TABSTOP
+
+    LTEXT           "호스트:", -1, 10, 106, 40, 10
+    EDITTEXT        IDC_CONN_HOST, 60, 104, 130, 14, WS_TABSTOP
+    LTEXT           "포트:", -1, 196, 106, 24, 10
+    EDITTEXT        IDC_CONN_PORT, 220, 104, 30, 14, ES_NUMBER | WS_TABSTOP
+
+    LTEXT           "프로토콜:", -1, 10, 124, 40, 10
+    COMBOBOX        IDC_CONN_PROTOCOL, 60, 122, 64, 60, CBS_DROPDOWNLIST | WS_TABSTOP
+    LTEXT           "인코딩:", -1, 132, 124, 30, 10
+    COMBOBOX        IDC_CONN_ENCODING, 164, 122, 86, 120, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+
+    LTEXT           "사용자명:", -1, 10, 142, 40, 10
+    EDITTEXT        IDC_CONN_USERNAME, 60, 140, 190, 14, WS_TABSTOP
+
+    LTEXT           "비밀번호:", -1, 10, 160, 40, 10
+    EDITTEXT        IDC_CONN_PASSWORD, 60, 158, 190, 14, ES_PASSWORD | WS_TABSTOP
+
+    LTEXT           "개인키:", -1, 10, 178, 40, 10
+    EDITTEXT        IDC_CONN_KEYFILE, 60, 176, 160, 14, ES_AUTOHSCROLL | WS_TABSTOP
+    PUSHBUTTON      "...", IDC_CONN_KEYBROWSE, 224, 176, 26, 14
+
+    PUSHBUTTON      "추가", IDC_CONN_ADD, 10, 200, 55, 16
+    PUSHBUTTON      "삭제", IDC_CONN_DELETE, 70, 200, 55, 16
+
+    LTEXT           "비밀번호는 현재 Windows 계정에서만 복호화되도록 암호화해 저장합니다. 비밀번호가 비어 있으면 접속할 때 서버가 요구하는 대로 입력받습니다.", -1, 10, 220, 240, 24
+
+    DEFPUSHBUTTON   "연결",   IDC_CONN_CONNECT, 130, 246, 55, 16
+    PUSHBUTTON      "닫기",   IDCANCEL,         195, 246, 55, 16
+END
+
+// ------------------------------------------------------------------
+// SSH 인증 질문 다이얼로그: 서버가 키보드 대화형 인증으로 묻는 질문(비밀번호,
+// OTP 등)이나 개인키 암호를 입력받는다.
+// ------------------------------------------------------------------
+IDD_AUTHPROMPT DIALOGEX 0, 0, 240, 104
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "SSH 인증"
+FONT 9, "맑은 고딕"
+BEGIN
+    LTEXT           "", IDC_AUTH_TEXT, 10, 10, 220, 46
+    EDITTEXT        IDC_AUTH_INPUT, 10, 60, 220, 14, ES_PASSWORD | ES_AUTOHSCROLL | WS_TABSTOP
+    DEFPUSHBUTTON   "확인",   IDOK,     120, 82, 50, 16
+    PUSHBUTTON      "취소",   IDCANCEL, 180, 82, 50, 16
+END
+
+// ------------------------------------------------------------------
+// 로그인 다이얼로그: SSH 접속 시 사용자명/비밀번호 입력.
+// ------------------------------------------------------------------
+IDD_LOGIN DIALOGEX 0, 0, 220, 100
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "SSH 로그인"
+FONT 9, "맑은 고딕"
+BEGIN
+    LTEXT           "사용자명:", -1, 10, 14, 60, 10
+    EDITTEXT        IDC_LOGIN_USERNAME, 80, 12, 130, 14, WS_TABSTOP
+
+    LTEXT           "비밀번호:", -1, 10, 34, 60, 10
+    EDITTEXT        IDC_LOGIN_PASSWORD, 80, 32, 130, 14, ES_PASSWORD | WS_TABSTOP
+
+    DEFPUSHBUTTON   "확인",   IDOK,     55, 70, 50, 16
+    PUSHBUTTON      "취소",   IDCANCEL, 115, 70, 50, 16
+END
+
+// ------------------------------------------------------------------
+// 가속기: Ctrl+Tab / Ctrl+Shift+Tab 으로 탭 전환.
+// ------------------------------------------------------------------
+CuttyAccelerators ACCELERATORS
+BEGIN
+    VK_TAB, ID_ACCEL_NEXTTAB, VIRTKEY, CONTROL, NOINVERT
+    VK_TAB, ID_ACCEL_PREVTAB, VIRTKEY, CONTROL, SHIFT, NOINVERT
+END

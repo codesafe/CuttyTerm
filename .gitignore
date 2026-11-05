@@ -1,0 +1,28 @@
+# 빌드 결과물
+bin/
+obj/
+*.pdb
+*.ilk
+*.exp
+*.lib
+
+# Visual Studio
+.vs/
+*.user
+*.aps
+*.VC.db
+*.VC.opendb
+ipch/
+
+# vcpkg (각자 설치 — README 빌드 방법 참고)
+vcpkg/
+vcpkg_installed/
+
+# 사용자 설정·접속 정보 (DPAPI 암호화 비밀번호, 호스트 키 포함)
+config.json
+known_hosts
+
+# 기타
+*.log
+__pycache__/
+*.pyc

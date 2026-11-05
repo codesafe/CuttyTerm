@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <ProjectGuid>{6E6F8C2A-6C0C-4B4E-9C7D-9E7D2F5B0A11}</ProjectGuid>
+    <RootNamespace>CuttyTerm</RootNamespace>
+    <ProjectName>CuttyTerm</ProjectName>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <Keyword>Win32Proj</Keyword>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)'=='Debug'">
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)'=='Release'">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+
+  <PropertyGroup>
+    <OutDir>$(SolutionDir)bin\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)obj\$(Configuration)\</IntDir>
+    <VcpkgRoot>$(SolutionDir)vcpkg\installed\x64-windows\</VcpkgRoot>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(VcpkgRoot)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>UNICODE;_UNICODE;WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <!-- 소스 파일이 BOM 없는 UTF-8 이므로 시스템 코드페이지(949) 오인식을 막기 위해 명시 -->
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalLibraryDirectories>$(VcpkgRoot)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <Manifest>
+      <AdditionalManifestFiles>$(ProjectDir)src\Resources\app.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
+    </Manifest>
+    <ResourceCompile>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\Resources;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- .rc 가 BOM 없는 UTF-8 이므로 시스템 코드페이지(949) 오인식을 막기 위해 명시 -->
+      <AdditionalOptions>/c65001 %(AdditionalOptions)</AdditionalOptions>
+    </ResourceCompile>
+  </ItemDefinitionGroup>
+
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <!-- 후속 빌드: vcpkg 로 설치된 SSH/OpenSSL/zlib DLL 을 실행 파일 옆으로 복사 -->
+  <ItemDefinitionGroup>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "$(VcpkgRoot)bin\*.dll" "$(OutDir)" &gt; nul</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\App.cpp" />
+    <ClCompile Include="src\Window\MainWindow.cpp" />
+    <ClCompile Include="src\Render\D2DContext.cpp" />
+    <ClCompile Include="src\Render\TextRenderer.cpp" />
+    <ClCompile Include="src\Terminal\TerminalBuffer.cpp" />
+    <ClCompile Include="src\Terminal\VtParser.cpp" />
+    <ClCompile Include="src\Terminal\Encoding.cpp" />
+    <ClCompile Include="src\Net\WinsockUtil.cpp" />
+    <ClCompile Include="src\Net\TelnetConnection.cpp" />
+    <ClCompile Include="src\Net\SshConnection.cpp" />
+    <ClCompile Include="src\Config\AppConfig.cpp" />
+    <ClCompile Include="src\Config\PasswordProtect.cpp" />
+    <ClCompile Include="src\UI\OptionsDialog.cpp" />
+    <ClCompile Include="src\UI\ConnectionDialog.cpp" />
+    <ClCompile Include="src\UI\Ime.cpp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="src\App.h" />
+    <ClInclude Include="src\Window\MainWindow.h" />
+    <ClInclude Include="src\Render\D2DContext.h" />
+    <ClInclude Include="src\Render\TextRenderer.h" />
+    <ClInclude Include="src\Render\GlyphCache.h" />
+    <ClInclude Include="src\Terminal\TerminalBuffer.h" />
+    <ClInclude Include="src\Terminal\VtParser.h" />
+    <ClInclude Include="src\Terminal\Encoding.h" />
+    <ClInclude Include="src\Terminal\Cell.h" />
+    <ClInclude Include="src\Terminal\CharWidth.h" />
+    <ClInclude Include="src\Terminal\AnsiColors.h" />
+    <ClInclude Include="src\Net\IConnection.h" />
+    <ClInclude Include="src\Net\WinsockUtil.h" />
+    <ClInclude Include="src\Net\TelnetConnection.h" />
+    <ClInclude Include="src\Net\SshConnection.h" />
+    <ClInclude Include="src\Config\AppConfig.h" />
+    <ClInclude Include="src\Config\PasswordProtect.h" />
+    <ClInclude Include="src\Config\ConnectionProfile.h" />
+    <ClInclude Include="src\UI\OptionsDialog.h" />
+    <ClInclude Include="src\UI\ConnectionDialog.h" />
+    <ClInclude Include="src\UI\Ime.h" />
+    <ClInclude Include="src\Common\StringUtil.h" />
+    <ClInclude Include="src\Resources\resource.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ResourceCompile Include="src\Resources\CuttyTerm.rc" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="src\Resources\app.ico" />
+    <None Include="src\Resources\app.manifest" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
