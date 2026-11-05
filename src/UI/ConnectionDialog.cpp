@@ -164,6 +164,28 @@ namespace Cutty
                     RefreshList(dlg, *ctx->config);
                 }
             }
+            else if (id == IDC_CONN_APPLY)
+            {
+                // 목록에서 선택한 연결을 입력란의 내용으로 수정
+                int sel = static_cast<int>(SendDlgItemMessageW(dlg, IDC_CONN_LIST, LB_GETCURSEL, 0, 0));
+                if (sel < 0 || sel >= static_cast<int>(ctx->config->connections.size()))
+                {
+                    MessageBoxW(dlg, L"수정할 연결을 목록에서 먼저 선택하세요.", L"연결 관리", MB_OK | MB_ICONINFORMATION);
+                    break;
+                }
+                ConnectionProfile profile = ReadFieldsAsProfile(dlg);
+                if (profile.host.empty())
+                {
+                    MessageBoxW(dlg, L"호스트를 입력하세요.", L"연결 관리", MB_OK | MB_ICONWARNING);
+                    break;
+                }
+                if (profile.name.empty()) profile.name = profile.host;
+                ctx->config->connections[sel] = profile;
+                RefreshList(dlg, *ctx->config);
+                SendDlgItemMessageW(dlg, IDC_CONN_LIST, LB_SETCURSEL, sel, 0);
+                SetDlgItemTextW(dlg, IDC_CONN_NAME, profile.name.c_str());
+                ctx->config->Save(); // 바로 파일에도 반영
+            }
             else if (id == IDC_CONN_DELETE)
             {
                 int sel = static_cast<int>(SendDlgItemMessageW(dlg, IDC_CONN_LIST, LB_GETCURSEL, 0, 0));

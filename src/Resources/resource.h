@@ -29,6 +29,7 @@
 #define IDC_CONN_KEYFILE                1111
 #define IDC_CONN_KEYBROWSE              1112
 #define IDC_CONN_ENCODING               1113
+#define IDC_CONN_APPLY                  1114
 
 // SSH 인증 질문 다이얼로그 컨트롤
 #define IDD_AUTHPROMPT                  230

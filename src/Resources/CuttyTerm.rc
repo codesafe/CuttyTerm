@@ -87,6 +87,7 @@ BEGIN
 
     PUSHBUTTON      "추가", IDC_CONN_ADD, 10, 200, 55, 16
     PUSHBUTTON      "삭제", IDC_CONN_DELETE, 70, 200, 55, 16
+    PUSHBUTTON      "적용", IDC_CONN_APPLY, 130, 200, 55, 16
 
     LTEXT           "비밀번호는 현재 Windows 계정에서만 복호화되도록 암호화해 저장합니다. 비밀번호가 비어 있으면 접속할 때 서버가 요구하는 대로 입력받습니다.", -1, 10, 220, 240, 24
 

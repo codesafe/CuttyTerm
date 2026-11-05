@@ -587,6 +587,20 @@ namespace Cutty
             }
             break;
         }
+        case WM_RBUTTONUP:
+        {
+            // 탭 우클릭: 재연결 / 연결 종료 / 탭 닫기 메뉴
+            POINT pt{ GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            TCHITTESTINFO hit{ pt, 0 };
+            int index = TabCtrl_HitTest(hwnd, &hit);
+            if (index >= 0)
+            {
+                ClientToScreen(hwnd, &pt);
+                self->ShowTabContextMenu(index, pt);
+                return 0;
+            }
+            break;
+        }
         case WM_NCDESTROY:
             RemoveWindowSubclass(hwnd, TabControlSubclassProc, 1);
             break;
@@ -1332,9 +1346,19 @@ namespace Cutty
         }
 
         TabState* tab = AddTab(profile);
-        int tabId = tab->id;
+        tab->username = username;
+        tab->password = password;
+        ConnectTab(*tab);
+    }
+
+    void MainWindow::ConnectTab(TabState& tab)
+    {
+        int tabId = tab.id;
         HWND hwnd = mHwnd;
         HINSTANCE instance = mInstance;
+        ConnectionProfile profile = tab.profile;
+        std::wstring username = tab.username;
+        std::wstring password = tab.password;
 
         std::thread([hwnd, instance, tabId, profile, username, password]()
         {
@@ -1415,12 +1439,13 @@ namespace Cutty
         tab->buffer.CurrentAttr().foreground = mConfig.foregroundColor;
         tab->buffer.CurrentAttr().background = mConfig.backgroundColor;
 
-        int tabId = tab->id;
-        tab->parser.OnResponse = [this, tabId](const std::string& bytes)
+        // 탭 id 는 재연결 때 바뀌므로 콜백은 탭 자신(parser 의 소유자)을 가리킨다.
+        TabState* self = tab.get();
+        tab->parser.OnResponse = [self](const std::string& bytes)
         {
-            if (TabState* t = FindTabById(tabId)) if (t->connection) t->connection->Send(bytes);
+            if (self->connection && !self->closed) self->connection->Send(bytes);
         };
-        tab->parser.OnTitleChanged = [this, tabId](const std::wstring& title) { UpdateTabTitle(tabId, title); };
+        tab->parser.OnTitleChanged = [this, self](const std::wstring& title) { UpdateTabTitle(self->id, title); };
         tab->parser.OnBell = []() { MessageBeep(MB_OK); };
 
         TCITEMW item{};
@@ -1468,6 +1493,87 @@ namespace Cutty
         }
         InvalidateRect(mTabControl, nullptr, FALSE);
         InvalidateTerminalArea();
+    }
+
+    void MainWindow::WriteStatusLine(TabState& tab, const std::wstring& text)
+    {
+        // 원격 출력과 구분되도록 노란색 한 줄로 찍는다.
+        std::wstring line = L"\r\n\x1b[0;33m" + text + L"\x1b[0m\r\n";
+        std::vector<char32_t> codePoints;
+        codePoints.reserve(line.size());
+        for (size_t i = 0; i < line.size(); ++i)
+        {
+            char32_t ch = line[i];
+            if (ch >= 0xD800 && ch <= 0xDBFF && i + 1 < line.size())
+            {
+                ch = 0x10000 + ((ch - 0xD800) << 10) + (line[++i] - 0xDC00);
+            }
+            codePoints.push_back(ch);
+        }
+        tab.parser.Feed(codePoints);
+        tab.scrollOffset = 0;
+        if (ActiveTab() == &tab) InvalidateTerminalArea();
+    }
+
+    void MainWindow::DisconnectTab(int index)
+    {
+        if (index < 0 || index >= static_cast<int>(mTabs.size())) return;
+        TabState& tab = *mTabs[index];
+        if (tab.closed) return;
+
+        // id 를 바꿔 두면 옛 연결 스레드가 뒤늦게 보내는 데이터/종료/접속완료 메시지는 무시된다
+        // (접속 중이던 연결은 OnConnectionReady 에서 바로 삭제됨).
+        tab.id = mNextTabId++;
+        tab.connection.reset(); // 수신 스레드 종료까지 기다림
+        tab.closed = true;
+        UpdateTabTitle(tab.id, tab.title + L" (닫힘)");
+        WriteStatusLine(tab, L"[연결을 종료했습니다]");
+        InvalidateRect(mTabControl, nullptr, FALSE);
+    }
+
+    void MainWindow::ReconnectTab(int index)
+    {
+        if (index < 0 || index >= static_cast<int>(mTabs.size())) return;
+        TabState& tab = *mTabs[index];
+
+        tab.id = mNextTabId++;
+        tab.connection.reset();
+        tab.closed = false;
+        UpdateTabTitle(tab.id, tab.profile.name.empty() ? tab.profile.host : tab.profile.name);
+
+        // 끊기기 전 원격 프로그램이 남긴 대체 화면/모드는 해제하고(DECSTR) 화면 내용은 유지한다.
+        std::wstring reset = L"\x1b[?1049l\x1b[!p";
+        tab.parser.Feed(std::vector<char32_t>(reset.begin(), reset.end()));
+        WriteStatusLine(tab, L"[재연결: " + tab.profile.host + L":" + std::to_wstring(tab.profile.port) + L"]");
+        InvalidateRect(mTabControl, nullptr, FALSE);
+        ConnectTab(tab);
+    }
+
+    void MainWindow::ShowTabContextMenu(int index, POINT screenPoint)
+    {
+        if (index < 0 || index >= static_cast<int>(mTabs.size())) return;
+        SwitchToTab(index);
+        InvalidateRect(mTabControl, nullptr, FALSE);
+
+        enum : UINT { kCmdReconnect = 1, kCmdDisconnect, kCmdClose };
+        bool open = !mTabs[index]->closed;
+        HMENU menu = CreatePopupMenu();
+        AppendMenuW(menu, MF_STRING, kCmdReconnect, open ? L"재연결 (기존 연결 종료)" : L"재연결");
+        AppendMenuW(menu, MF_STRING | (open ? 0 : MF_GRAYED), kCmdDisconnect, L"연결 종료");
+        AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+        AppendMenuW(menu, MF_STRING, kCmdClose, L"탭 닫기");
+        UINT command = TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
+                                      screenPoint.x, screenPoint.y, 0, mHwnd, nullptr);
+        DestroyMenu(menu);
+
+        switch (command)
+        {
+        case kCmdReconnect: ReconnectTab(index); break;
+        case kCmdDisconnect: DisconnectTab(index); break;
+        case kCmdClose: RequestCloseTab(index); break;
+        default: break;
+        }
+        SetFocus(mHwnd);
     }
 
     void MainWindow::SwitchToTab(int index)
@@ -1542,9 +1648,10 @@ namespace Cutty
     void MainWindow::OnConnectionClosed(int tabId)
     {
         TabState* tab = FindTabById(tabId);
-        if (!tab) return;
+        if (!tab || tab->closed) return;
         tab->closed = true;
         UpdateTabTitle(tabId, tab->title + L" (닫힘)");
+        WriteStatusLine(*tab, L"[연결이 끊어졌습니다 - 탭 우클릭 > 재연결]");
         InvalidateRect(mTabControl, nullptr, FALSE);
     }
 

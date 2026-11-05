@@ -37,8 +37,10 @@ namespace Cutty
         {
             explicit TabState(int idValue) : id(idValue), parser(buffer) {}
 
-            int id;
+            int id; // 연결마다 새로 발급 (재연결/종료 후 옛 연결 스레드의 메시지를 무시하기 위함)
             std::wstring title;
+            std::wstring username; // 실제 접속에 쓴 사용자명/비밀번호 (재연결 시 재사용)
+            std::wstring password;
             TerminalBuffer buffer;
             VtParser parser; // buffer 를 참조하므로 buffer 다음에 선언되어야 함
             StreamDecoder decoder;
@@ -93,8 +95,13 @@ namespace Cutty
         void OpenNewConnection();
         void StartConnection(const ConnectionProfile& profile);
         TabState* AddTab(const ConnectionProfile& profile);
+        void ConnectTab(TabState& tab); // 탭의 profile/자격증명으로 배경 스레드에서 접속 시작
         void RequestCloseTab(int index); // 사용자에게 닫기 확인을 받은 뒤 CloseTab
         void CloseTab(int index);
+        void DisconnectTab(int index);  // 탭은 남기고 연결만 끊음
+        void ReconnectTab(int index);   // 기존 연결을 끊고 같은 탭에서 다시 접속
+        void ShowTabContextMenu(int index, POINT screenPoint);
+        void WriteStatusLine(TabState& tab, const std::wstring& text); // 터미널에 안내 줄 출력
         void SwitchToTab(int index);
         void SwitchTabRelative(int delta);
         TabState* ActiveTab();
