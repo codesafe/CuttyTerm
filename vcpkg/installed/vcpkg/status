@@ -1,0 +1,78 @@
+Package: vcpkg-cmake
+Version: 2025-08-07
+Architecture: x64-windows
+Multi-Arch: same
+Abi: f797c82c69e23db849f5e5b05fc2aaa53841e7d2df2aefb25c960502b8cc76f5
+Status: install ok installed
+
+Package: vcpkg-cmake-config
+Version: 2026-07-21
+Architecture: x64-windows
+Multi-Arch: same
+Abi: 7021b1e08b2aca66b238eec42414687a4c817416a47481c494998142ed82c8f6
+Status: install ok installed
+
+Package: vcpkg-cmake-get-vars
+Version: 2025-05-29
+Depends: vcpkg-cmake
+Architecture: x64-windows
+Multi-Arch: same
+Abi: 7a394c10f05fa4f73f1bf69dcb59c8d94812df922db9457b90af8375eac32cdb
+Status: install ok installed
+
+Package: openssl
+Version: 3.6.4
+Depends: vcpkg-cmake, vcpkg-cmake-config, vcpkg-cmake-get-vars
+Architecture: x64-windows
+Multi-Arch: same
+Abi: b42847aaef2a1500debfe3bdc23a8052a2756c4e2da11b55e4a8b14b2c5df07a
+Description: OpenSSL is an open source project that provides a robust, commercial-grade, and full-featured toolkit for the Transport Layer Security (TLS) and Secure Sockets Layer (SSL) protocols. It is also a general-purpose cryptography library.
+Status: install ok installed
+
+Package: zlib
+Version: 1.3.2
+Port-Version: 2
+Depends: vcpkg-cmake, vcpkg-cmake-config
+Architecture: x64-windows
+Multi-Arch: same
+Abi: 214debe9a1f07cd9be6ded4d56d9cfbec8b4572eb897ec3ecbca14fdac014328
+Description: A compression library
+Status: install ok installed
+
+Package: libssh2
+Version: 1.11.1
+Port-Version: 3
+Depends: vcpkg-cmake, vcpkg-cmake-config
+Architecture: x64-windows
+Multi-Arch: same
+Abi: 96dfa1071340bbcd6712641cd551da737016517163fd7bb435d8f9eab6acfecf
+Description: libssh2 is a client-side C library implementing the SSH2 protocol.
+Default-Features: openssl, zlib
+Status: install ok installed
+
+Package: libssh2
+Feature: openssl
+Depends: openssl
+Architecture: x64-windows
+Multi-Arch: same
+Description: Use the openssl crypto backend
+Status: install ok installed
+
+Package: libssh2
+Feature: zlib
+Depends: zlib
+Architecture: x64-windows
+Multi-Arch: same
+Description: Use compression via zlib
+Status: install ok installed
+
+Package: nlohmann-json
+Version: 3.12.0
+Port-Version: 2
+Depends: vcpkg-cmake, vcpkg-cmake-config
+Architecture: x64-windows
+Multi-Arch: same
+Abi: 3a9f0f93b8ac89d5efe516cf7b881c65ec63bdbdc31d2e96f59b23cce96dc9c1
+Description: JSON for Modern C++
+Status: install ok installed
+
