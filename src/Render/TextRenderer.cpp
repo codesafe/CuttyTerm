@@ -96,6 +96,45 @@ namespace Cutty
         }
     }
 
+    // Block Elements (U+2580-U+259F). 폰트 글리프는 셀 크기와 어긋나 틈이 생기거나
+    // 깨져 보이므로(예: Claude Code 마스코트) 셀 전체에 맞춰 사각형으로 직접 그린다.
+    bool TextRenderer::IsBlockElement(char32_t cp)
+    {
+        return cp >= 0x2580 && cp <= 0x259F;
+    }
+
+    void TextRenderer::DrawBlockElement(char32_t cp, float x, float y, uint32_t fg)
+    {
+        const float w = mCellWidth, h = mCellHeight;
+        const float x2 = x + w, y2 = y + h, mx = x + w / 2, my = y + h / 2;
+        auto fill = [&](float l, float t, float r, float b, float alpha = 1.0f)
+        {
+            mBrush->SetColor(D2D1::ColorF(fg, alpha));
+            mD2DContext->FillRectangle(D2D1::RectF(l, t, r, b), mBrush.Get());
+        };
+
+        if (cp == 0x2580) fill(x, y, x2, my);                                           // ▀
+        else if (cp >= 0x2581 && cp <= 0x2587) fill(x, y2 - h * (cp - 0x2580) / 8.0f, x2, y2); // ▁..▇
+        else if (cp == 0x2588) fill(x, y, x2, y2);                                      // █
+        else if (cp >= 0x2589 && cp <= 0x258F) fill(x, y, x + w * (0x2590 - cp) / 8.0f, y2);   // ▉..▏
+        else if (cp == 0x2590) fill(mx, y, x2, y2);                                     // ▐
+        else if (cp == 0x2591) fill(x, y, x2, y2, 0.25f);                               // ░
+        else if (cp == 0x2592) fill(x, y, x2, y2, 0.5f);                                // ▒
+        else if (cp == 0x2593) fill(x, y, x2, y2, 0.75f);                               // ▓
+        else if (cp == 0x2594) fill(x, y, x2, y + h / 8.0f);                            // ▔
+        else if (cp == 0x2595) fill(x2 - w / 8.0f, y, x2, y2);                          // ▕
+        else
+        {
+            // 사분 블록 ▖▗▘▙▚▛▜▝▞▟ : bit0=좌하, bit1=우하, bit2=좌상, bit3=우상
+            static const uint8_t kQuadrants[10] = { 0x01, 0x02, 0x04, 0x07,0x06, 0x0D, 0x0E, 0x08, 0x09, 0x0B };
+            uint8_t bits = kQuadrants[cp - 0x2596];
+            if (bits & 0x01) fill(x, my, mx, y2);
+            if (bits & 0x02) fill(mx, my, x2, y2);
+            if (bits & 0x04) fill(x, y, mx, my);
+            if (bits & 0x08) fill(mx, y, x2, my);
+        }
+    }
+
     void TextRenderer::DrawRow(const std::vector<Cell>& row, float y, int hOffset, int viewportCols)
     {
         // 실제 그릴 절대 컬럼 범위 [hOffset, columns). 스크롤백 등 저장 폭이 좁은
@@ -133,6 +172,13 @@ namespace Cutty
         {
             if (row[col].isTrailing || row[col].hidden) { ++col; continue; }
 
+            if (IsBlockElement(row[col].codepoint))
+            {
+                DrawBlockElement(row[col].codepoint, screenX(col), y, EffectiveForeground(row[col]));
+                ++col;
+                continue;
+            }
+
             const Cell& first = row[col];
             uint32_t fg = EffectiveForeground(first);
             bool bold = first.bold;
@@ -148,7 +194,7 @@ namespace Cutty
             {
                 const Cell& cell = row[col];
                 if (cell.isTrailing) { ++col; continue; }
-                if (cell.hidden) break;
+                if (cell.hidden || IsBlockElement(cell.codepoint)) break;
                 uint32_t curFg = EffectiveForeground(cell);
                 GlyphCache* curFontCache = &CacheForCodepoint(cell.codepoint);
                 if (curFg != fg || cell.bold != bold || cell.italic != italic || curFontCache != fontCache) break;

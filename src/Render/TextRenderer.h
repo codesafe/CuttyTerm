@@ -43,6 +43,8 @@ namespace Cutty
     private:
         // hOffset: 가로 스크롤로 왼쪽에서 몇 칸을 건너뛰고 그릴지. viewportCols: 실제로 그릴 칸 수.
         void DrawRow(const std::vector<Cell>& row, float y, int hOffset, int viewportCols);
+        static bool IsBlockElement(char32_t cp);
+        void DrawBlockElement(char32_t cp, float x, float y, uint32_t fg);
         void DrawCursor(int column, float y, bool filled);
         void DrawSelection(const TextSelection& selection, int64_t lineId, int lineLength, float y, int hOffset);
         void DrawImeOverlay(const ImeOverlay& overlay, int cursorRow, int cursorColumn);
