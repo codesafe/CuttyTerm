@@ -84,6 +84,8 @@ namespace Cutty
 
         void CreateToolbar();
         void CreateTabControl();
+        void ApplyDpi(UINT dpi);          // 툴바 아이콘/탭 크기/폰트를 DPI에 맞게 다시 계산
+        int Scale(int px) const { return MulDiv(px, static_cast<int>(mDpi), 96); }
         static LRESULT CALLBACK TabControlSubclassProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam,
                                                        UINT_PTR id, DWORD_PTR refData);
         void PaintTabStrip(HDC dc, const RECT& client); // 둥근 탭 줄 전체를 직접 그림
@@ -157,7 +159,8 @@ namespace Cutty
 
         int mToolbarHeight = 28;
         int mTabHeight = 32;
-        static constexpr int kTabWidth = 170;
+        UINT mDpi = 96;
+        int mTabWidth = 170;
         HFONT mTabFont = nullptr;
         int mHoverTabIndex = -1;
         bool mHoverOverClose = false; // 호버 중인 탭의 X 버튼 위에 마우스가 있는지

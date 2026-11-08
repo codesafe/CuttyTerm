@@ -45,9 +45,8 @@ namespace Cutty
             return path;
         }
 
-        HICON CreateToolbarIcon(void (*draw)(Gdiplus::Graphics& g))
+        HICON CreateToolbarIcon(void (*draw)(Gdiplus::Graphics& g), int size)
         {
-            const int size = kToolbarIconSize;
             BITMAPINFO bmi{};
             bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
             bmi.bmiHeader.biWidth = size;
@@ -229,6 +228,19 @@ namespace Cutty
             OnSize(LOWORD(lParam), HIWORD(lParam));
             return 0;
 
+        case WM_DPICHANGED:
+        {
+            // 모니터 DPI 가 바뀌면(예: FHD <-> 4K 모니터 이동) 시스템이 제안한 크기로 창을
+            // 옮기고, 툴바 아이콘/탭 크기/폰트를 새 DPI 로 다시 만든다.
+            const RECT* suggested = reinterpret_cast<const RECT*>(lParam);
+            SetWindowPos(hwnd, nullptr, suggested->left, suggested->top,
+                         suggested->right - suggested->left, suggested->bottom - suggested->top,
+                         SWP_NOZORDER | SWP_NOACTIVATE);
+            ApplyDpi(HIWORD(wParam));
+            LayoutChildren();
+            return 0;
+        }
+
         case WM_PAINT:
         {
             // 실제 터미널 렌더링은 mRenderArea 자식 윈도우가 전담한다. 프레임 자신은
@@ -340,6 +352,7 @@ namespace Cutty
     {
         CreateToolbar();
         CreateTabControl();
+        ApplyDpi(GetDpiForWindow(mHwnd));
         CreateRenderArea();
 
         mD2DContext.Initialize(mRenderArea);
@@ -471,16 +484,7 @@ namespace Cutty
                                     0, 0, 0, 0, mHwnd, nullptr, mInstance, nullptr);
         SendMessageW(mToolbar, TB_BUTTONSTRUCTSIZE, sizeof(TBBUTTON), 0);
 
-        HIMAGELIST imageList = ImageList_Create(kToolbarIconSize, kToolbarIconSize, ILC_COLOR32, 3, 0);
-        HICON icons[3] = { CreateToolbarIcon(DrawNewConnectionGlyph),
-                           CreateToolbarIcon(DrawOptionsGlyph),
-                           CreateToolbarIcon(DrawCloseGlyph) };
-        for (HICON icon : icons)
-        {
-            ImageList_AddIcon(imageList, icon);
-            DestroyIcon(icon);
-        }
-        SendMessageW(mToolbar, TB_SETIMAGELIST, 0, reinterpret_cast<LPARAM>(imageList));
+        mDpi = GetDpiForWindow(mHwnd);
 
         auto addString = [this](const wchar_t* text) -> int
         {
@@ -500,13 +504,47 @@ namespace Cutty
         // 표시하고 아이콘 설명은 제거"). 텍스트 행 수를 0으로 고정하면 라벨은 사라지고
         // TBSTYLE_TOOLTIPS 를 통한 호버 툴팁은 그대로 동작한다.
         SendMessageW(mToolbar, TB_SETMAXTEXTROWS, 0, 0);
-        SendMessageW(mToolbar, TB_SETPADDING, 0, MAKELPARAM(6, 6));
+        // 아이콘 이미지 리스트/패딩/높이는 DPI 의존이므로 ApplyDpi 에서 설정한다.
+    }
+
+    void MainWindow::ApplyDpi(UINT dpi)
+    {
+        mDpi = dpi;
+
+        // 툴바: DPI 에 맞는 크기로 아이콘을 다시 그려 이미지 리스트 교체
+        const int iconSize = Scale(kToolbarIconSize);
+        HIMAGELIST imageList = ImageList_Create(iconSize, iconSize, ILC_COLOR32, 3, 0);
+        HICON icons[3] = { CreateToolbarIcon(DrawNewConnectionGlyph, iconSize),
+                           CreateToolbarIcon(DrawOptionsGlyph, iconSize),
+                           CreateToolbarIcon(DrawCloseGlyph, iconSize) };
+        for (HICON icon : icons)
+        {
+            ImageList_AddIcon(imageList, icon);
+            DestroyIcon(icon);
+        }
+        HIMAGELIST oldList = reinterpret_cast<HIMAGELIST>(
+            SendMessageW(mToolbar, TB_SETIMAGELIST, 0, reinterpret_cast<LPARAM>(imageList)));
+        if (oldList) ImageList_Destroy(oldList);
+        SendMessageW(mToolbar, TB_SETBUTTONSIZE, 0, MAKELPARAM(iconSize + Scale(12), iconSize + Scale(12)));
+        SendMessageW(mToolbar, TB_SETPADDING, 0, MAKELPARAM(Scale(6), Scale(6)));
         SendMessageW(mToolbar, TB_AUTOSIZE, 0, 0);
 
         // 실제 렌더링된 높이를 측정해 레이아웃 계산에 사용 (DPI/테마에 따라 달라질 수 있음).
         RECT toolbarRect;
         GetWindowRect(mToolbar, &toolbarRect);
         mToolbarHeight = toolbarRect.bottom - toolbarRect.top;
+
+        // 탭 줄
+        mTabWidth = Scale(170);
+        mTabHeight = Scale(32);
+        SendMessageW(mTabControl, TCM_SETITEMSIZE, 0, MAKELPARAM(mTabWidth, mTabHeight - Scale(4)));
+        HFONT newFont = CreateFontW(-Scale(12), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+                                    OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH,
+                                    L"Segoe UI");
+        SendMessageW(mTabControl, WM_SETFONT, reinterpret_cast<WPARAM>(newFont), FALSE);
+        if (mTabFont) DeleteObject(mTabFont);
+        mTabFont = newFont;
+        InvalidateRect(mTabControl, nullptr, TRUE);
     }
 
     void MainWindow::CreateTabControl()
@@ -516,10 +554,7 @@ namespace Cutty
         mTabControl = CreateWindowExW(0, WC_TABCONTROLW, nullptr,
                                        WS_CHILD | WS_VISIBLE | TCS_TABS | TCS_FOCUSNEVER | TCS_FIXEDWIDTH,
                                        0, 0, 0, 0, mHwnd, nullptr, mInstance, nullptr);
-        SendMessageW(mTabControl, TCM_SETITEMSIZE, 0, MAKELPARAM(kTabWidth, mTabHeight - 4));
-        mTabFont = CreateFontW(-12, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                               CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
-        SendMessageW(mTabControl, WM_SETFONT, reinterpret_cast<WPARAM>(mTabFont), FALSE);
+        // 크기/폰트는 ApplyDpi 에서 DPI 에 맞춰 설정한다.
         SetWindowSubclass(mTabControl, TabControlSubclassProc, 1, reinterpret_cast<DWORD_PTR>(this));
     }
 
@@ -617,14 +652,14 @@ namespace Cutty
         TabCtrl_GetItemRect(mTabControl, index, &item);
         GetClientRect(mTabControl, &client);
         bool isSelected = (index == TabCtrl_GetCurSel(mTabControl));
-        return RECT{ item.left + 2, item.top + (isSelected ? 2 : 4), item.right - 2, client.bottom };
+        return RECT{ item.left + Scale(2), item.top + Scale(isSelected ? 2 : 4), item.right - Scale(2), client.bottom };
     }
 
     RECT MainWindow::TabCloseButtonRect(int index) const
     {
         RECT body = TabBodyRect(index);
         int centerY = (body.top + body.bottom) / 2;
-        return RECT{ body.right - 24, centerY - 8, body.right - 8, centerY + 8 };
+        return RECT{ body.right - Scale(24), centerY - Scale(8), body.right - Scale(8), centerY + Scale(8) };
     }
 
     bool MainWindow::HitTabCloseButton(int index, POINT pt) const
@@ -636,6 +671,8 @@ namespace Cutty
     void MainWindow::PaintTabStrip(HDC dc, const RECT& client)
     {
         using namespace Gdiplus;
+
+        const float s = static_cast<float>(mDpi) / 96.0f; // DPI 배율
 
         Graphics g(dc);
         g.SetSmoothingMode(SmoothingModeAntiAlias);
@@ -666,7 +703,7 @@ namespace Cutty
             float bottom = static_cast<float>(body.bottom);
 
             // 위쪽 모서리만 둥근 탭 모양 (아래는 탭 줄 바닥까지 곧게 내려감).
-            const float radius = 7.0f;
+            const float radius = 7.0f * s;
             GraphicsPath shape;
             shape.AddArc(left, top, radius * 2, radius * 2, 180.0f, 90.0f);
             shape.AddArc(right - radius * 2, top, radius * 2, radius * 2, 270.0f, 90.0f);
@@ -679,7 +716,7 @@ namespace Cutty
                                     : (isHover ? Color(255, 214, 214, 218) : Color(255, 196, 196, 201));
             SolidBrush fillBrush(fill);
             g.FillPath(&fillBrush, &shape);
-            Pen edge(Color(255, 160, 160, 166), 1.0f);
+            Pen edge(Color(255, 160, 160, 166), std::max(1.0f, s));
             g.DrawPath(&edge, &shape);
 
             if (isSelected)
@@ -687,7 +724,7 @@ namespace Cutty
                 // 선택된 탭 위쪽에 파란 강조선 (탭 모양에 맞춰 잘라서 둥근 모서리를 따라가게 함).
                 g.SetClip(&shape);
                 LinearGradientBrush accent(PointF(left, 0), PointF(right, 0), Color(255, 0, 122, 204), Color(255, 80, 170, 255));
-                g.FillRectangle(&accent, left, top, right - left, 2.5f);
+                g.FillRectangle(&accent, left, top, right - left, 2.5f * s);
                 g.ResetClip();
             }
 
@@ -696,26 +733,26 @@ namespace Cutty
             bool connected = tab.connection && !tab.closed;
             SolidBrush dot(connected ? Color(255, 40, 170, 80) : Color(255, 130, 130, 136));
             float midY = (top + bottom) / 2.0f;
-            g.FillEllipse(&dot, left + 10.0f, midY - 3.5f, 7.0f, 7.0f);
+            g.FillEllipse(&dot, left + 10.0f * s, midY - 3.5f * s, 7.0f * s, 7.0f * s);
 
             SolidBrush textBrush(Color(255, 0, 0, 0));
-            RectF textRect(left + 23.0f, top, right - left - 52.0f, bottom - top);
+            RectF textRect(left + 23.0f * s, top, right - left - 52.0f * s, bottom - top);
             g.DrawString(tab.title.c_str(), -1, &font, textRect, &format, &textBrush);
 
             // 닫기 X 버튼: 마우스를 올리면 빨간 원 배경 + 흰 X 로 강조.
             RECT closeRect = TabCloseButtonRect(i);
-            RectF close(static_cast<float>(closeRect.left), static_cast<float>(closeRect.top), 16.0f, 16.0f);
+            RectF close(static_cast<float>(closeRect.left), static_cast<float>(closeRect.top), 16.0f * s, 16.0f * s);
             bool closeHot = isHover && mHoverOverClose;
             if (closeHot)
             {
                 SolidBrush hot(Color(255, 220, 60, 60));
                 g.FillEllipse(&hot, close);
             }
-            Pen cross(closeHot ? Color(255, 255, 255, 255) : Color(255, 70, 70, 76), 1.5f);
+            Pen cross(closeHot ? Color(255, 255, 255, 255) : Color(255, 70, 70, 76), 1.5f * s);
             cross.SetStartCap(LineCapRound);
             cross.SetEndCap(LineCapRound);
-            g.DrawLine(&cross, close.X + 5.0f, close.Y + 5.0f, close.X + 11.0f, close.Y + 11.0f);
-            g.DrawLine(&cross, close.X + 11.0f, close.Y + 5.0f, close.X + 5.0f, close.Y + 11.0f);
+            g.DrawLine(&cross, close.X + 5.0f * s, close.Y + 5.0f * s, close.X + 11.0f * s, close.Y + 11.0f * s);
+            g.DrawLine(&cross, close.X + 11.0f * s, close.Y + 5.0f * s, close.X + 5.0f * s, close.Y + 11.0f * s);
         }
     }
 

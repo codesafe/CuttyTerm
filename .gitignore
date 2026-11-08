@@ -4,7 +4,7 @@ obj/
 *.pdb
 *.ilk
 *.exp
-*.lib
+#*.lib
 
 # Visual Studio
 .vs/
